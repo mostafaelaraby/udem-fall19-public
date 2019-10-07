@@ -1,42 +1,66 @@
 version: '3'
 services:
-    duckietown-notebook:
-        # image: duckietown/dt-notebook:udem
+    lanefollow:
+        image: duckietown/dt-notebook:udem
         build:
             context: .
             dockerfile: DockerfileNB
-        depends_on:
-        - "rosmaster"
+        working_dir: /duckietown
         networks:
         - duckietown-docker-net
+        depends_on:
+        - "sim"
         volumes:
-        - ./software/:/duckietown/software/
-        - ./simulation/:/duckietown/simulation/
-        - ./notebooks/:/duckietown/notebooks/
-        - ./utils/:/duckietown/utils/
-        - ./custom/:/duckietown/custom/
-        - ./dt_msg_ws/:/duckietown/dt_msg_ws/
+        - ./catkin_ws:/duckietown/catkin_ws
+        - ./notebooks:/duckietown/notebooks
+        - ./utils:/duckietown/utils
+        - ./custom:/duckietown/custom
+        - ./custom_ws:/duckietown/custom_ws
+        - ./simulation:/duckietown/simulation
+        - /tmp/.X11-unix:/tmp/.X11-unix
+        environment:
+        - "ROS_MASTER_URI=http://sim:11311"
+        - "HOSTNAME=default"
+        - "VEHICLE_NAME=default"
+        - "DISPLAY:=99"
         expose:
         - "8888"
         ports:
         - "8888:8888"
-        volumes:
-        - /tmp/.X11-unix:/tmp/.X11-unix
-        environment:
-        - "ROS_MASTER_URI=http://rosmaster:11311"
-        - "ROS_PYTHON_VERSION=3"
 
-    rosmaster:
-        image: duckietown/rpi-duckiebot-base:master19-no-arm
+    novnc:
+        image: duckietown/dt-novnc:udem
+        build:
+            context: .
+            dockerfile: DockerfileNoVNC
         networks:
         - duckietown-docker-net
-        command: 
-        - roscore
         environment:
-        - "ROS_MASTER_URI=http://rosmaster:11311"
+        - "ROS_MASTER_URI=http://sim:11311"
         - "HOSTNAME=default"
+        - "VEHICLE_NAME=default"
+        expose:
+        - "5901"
+        - "6901"
+        ports:
+        - "5901:5901"
+        - "6901:6901"
 
+    sim:
+        image: duckietown/dt-sim:udem
+        build:
+            context: .
+            dockerfile: DockerfileSim
+        networks:
+        - duckietown-docker-net
+        volumes:
+        - ./simulation:/duckietown/simulation
+        - ./utils:/duckietown/utils        
+        environment:
+        - "ROS_MASTER_URI=http://sim:11311"
+        - "HOSTNAME=default"
+        - "VEHICLE_NAME=default"
+        - "DISPLAY=:99"
 
 networks:
     duckietown-docker-net:
-
