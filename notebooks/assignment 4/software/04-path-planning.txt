@@ -1,0 +1,66 @@
+## Part 1
+
+### What would happen if the Duckiebot was placed in an environment with very small obstacles? 
+With very small obstacles smaller than path_res the RRT won't be able to detect obstacles and the bot would crash into one of them
+### Would RRT be able to avoid them? 
+yes he would.
+### Which parameters would you need to adjust, and what would be the side effects? 
+In order the bot survive the small obstacles we need to reduce the value of path_res to at most  the size of the smallest obstacle
+
+### Is it needed to re-plan everytime the first path point is reached? In which situation would it be important?
+yes if we are in a dynamic environment then obstacles location might change so we need to replan, but in static environment we can follow the planned path created only on the start of the motion
+
+### What are the advantages and disadvantages of doing so?
+Advantages is to avoid moving obstacles at each call of the planning, the disadvantage is planning the whole graph at each node point which is quite computational expensive
+
+## Part 2
+
+### Safety 
+In RRT, it assumes the moving object is moving at a constant velocity, which is not feasible
+for a reality robot agent. so i suggest adding  a factor safety distance which guarantees deceleration without hitting an obstacle  calculated based on stop maximum deleration and this S would be added to obstacle size when computing RRT for safe RRT .
+Assuming v_i initial speed D maximum stop deceleration.
+Then S safety distance = (v_i^2 / 2 * D)
+Inspired from the following interesting publication
+Ref Feng, Bin & Liu, Yang. (2014). An Improved RRT Based Path Planning with Safe Navigation. Applied Mechanics and Materials. 494-495. 1080-1083. 10.4028/www.scientific.net/AMM.494-495.1080. 
+### Computation efficiency
+the current computation compexity of RRT is 
+T(N) = T_sampling(N) + T_nearest(N) + T_extend(N) + T_add(N)
+T_sampling(N) = O(N)
+T_extend(N) = O(N)
+T_add(N) = O(N)
+T_nearest(N) = sum_{i=1}^{N} i-1 T_dist = (N^2 - N)T_dist / 2
+T(N) ~ O(N^2) and in order to optimize its speed we need to optimize the function getting the nearest nodes to the sampled node which can be achieved by using a simple KD tree for finding nearest neighbor node so its speed will be optimized to ~ O(log(N))
+
+### time to reach objective
+to implement this we need to update the plan function of RRT to keep track of distances between vertices and select only the shortest path between current node and destination node and on each time we sample random node we check its neighbors and check if it will reduce the path cost to our destination if the cost is reduced then we do vertices rewiring and at the end we will get from RRT* the shortest possible path but this technique is computationally expensive
+
+
+#### Planner Improvements for time to reach objective
+i improved the planner to favor shortest path between randomly sampled node and neighboring node which would prefer moving in straight lines and will thus reduce the driving time but the planning will be computationally expensive as each time you get the neighboring nodes within a radius R you have to calculate their distance to the currently sampled node 
+
+The added improvements to RRT are:
+- RRT* records the distance each node has traveled relative to its parent node. This is referred to as the cost of the current node. After the closest node is found in the graph, a neighborhood of nodes in a fixed radius from the new node are examined. If a node with a cheaper cost() than the proximal node is found, the cheaper node replaces the proximal node. 
+- The rewiring of the tree. After a node has been connected to the cheapest neighbor, the neighbors are again examined. Neighbors are checked if being rewired to the newly added vertex will make their cost decrease. If the cost does indeed decrease, the neighbor is rewired to the newly added node. This feature makes the path more smooth.
+
+After trying this improvment it reduced the bot running to goal time, but it took longer time to compute
+
+
+#### Demonstration code
+
+'''
+dist_to_goal =  get_dist_to_goal(bonus_env.cur_pos, goal)
+my_path = make_plan(bonus_env)
+
+path_follower = RTT_Path_Follower(my_path, bonus_env)
+while dist_to_goal > 0.3:
+    if my_path is None:
+        break
+    v, omega = path_follower.next_action()
+    obs, _, d, _ = bonus_env.step([v, omega])
+    if d:
+        print("Crash")
+        break
+    dist_to_goal =  get_dist_to_goal(bonus_env.cur_pos, goal)
+
+'''
+and the bot time reduced to ~ 1:24 from ~1:26 and in the grah it favors moving in straight lines

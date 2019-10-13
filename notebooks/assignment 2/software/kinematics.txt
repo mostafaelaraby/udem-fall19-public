@@ -1,0 +1,129 @@
+## Section 1.A
+### Code
+	theta = math.radians(obstacle_angle + duckie_or_g)
+	#creating translation and rotation matrix
+	obstacle_pos_g = duckie_pos_g + obstacle_dist_to_duckie*np.array([np.cos(theta), np.sin(theta)])
+### obstacle_pos_g value
+	array([1.77018667, 0.59283628])
+
+## Section 1.B
+### Code
+	duckie_or_g =   math.radians(duckie_or_g)
+	rotation_matrix = np.array([
+	    [math.cos(duckie_or_g),  math.sin(duckie_or_g) ],
+	    [- math.sin(duckie_or_g), math.cos(duckie_or_g)]
+	    ])
+	obstacle_pos_r = rotation_matrix.dot(np.array([[ obstacle_pos_g[0] - duckie_pos_g[0]],[obstacle_pos_g[1] - duckie_pos_g[1]]]))
+### obstacle_pos_r value
+	array([[ 0.49497475],[-0.21213203]])
+
+
+## Section 2
+### Code
+	velocity = (math.sqrt((start_pos[0]-0  )**2 + (start_pos[1] -2  ) **2 )/np.sqrt(2)*np.pi/2 )/(total_timesteps * dt) 
+	angular_velocity = math.radians(-45-cur_angle) / (total_timesteps * dt   )
+	right_rate =  (velocity +  (0.5 * wheel_dist * angular_velocity))
+	left_rate = right_rate - ( wheel_dist * angular_velocity)
+	right_rate /=(wheel_radius * np.pi * 2)
+	left_rate  /=(wheel_radius * np.pi * 2)
+
+## Section 3
+### Code
+	gain = 1.0115
+	trim = -0.0313
+
+## Section 4
+### Code
+
+	for t in range(total_timesteps):
+	    
+	    ### Modify code here depending on t (you can use if statements)
+	    v=0.5
+	    maximum_distance = v * total_timesteps * dt
+	    maximum_circle_radius = maximum_distance / (np.pi + 2) # from the perimeter of the D character
+	    half_circle_limit = int(total_timesteps*np.pi/(np.pi+2)) # t steps to achieve the half circle of the D
+	    
+	    if t<half_circle_limit:
+		omega = v/maximum_circle_radius
+	    elif t==phase_one_limit:
+		omega = (270 - cur_angle) / 180 * np.pi / dt
+	    else:
+		omega = 0
+	    ###
+	    
+	    left_rate, right_rate =  vel2wheel(v, omega, wheel_dist, wheel_rad)     #  in turns per second
+	    cur_pos, cur_angle = drive(cur_pos, cur_angle, left_rate, right_rate, wheel_dist, wheel_rad, dt)
+	    poses.append((cur_pos, cur_angle))
+
+## Section 4.Bonus
+### Code
+
+	//drawing smiley face circle
+
+	smiley_circle_radius = 3
+	start_pos = [smiley_circle_radius/2, smiley_circle_radius/2]
+	cur_angle = 45         //angle in degrees
+	cur_pos = start_pos
+	v = 0.5
+	distance = 2 * math.pi * smiley_circle_radius
+	timesteps = int(distance  / (v * dt)) 
+	for t in range(timesteps):
+	    omega = 0.5 / smiley_circle_radius
+	    left_rate, right_rate =  vel2wheel(v, omega, wheel_dist, wheel_rad)     #  in turns per second
+	    cur_pos, cur_angle = drive(cur_pos, cur_angle, left_rate, right_rate, wheel_dist, wheel_rad, dt)
+	    poses.append((cur_pos, cur_angle))
+
+	//jumping to the left corner to draw first eye
+	start_pos = [start_pos[0] - smiley_circle_radius * 1.2, start_pos[1] + smiley_circle_radius]
+	first_eye = start_pos
+	cur_angle = 0         # angle in degrees
+	cur_pos = start_pos  
+	eye_circle_radius = 0.3
+
+	distance = 2 * math.pi * eye_circle_radius
+	timesteps = int(distance  / (v * dt)) 
+	for t in range(timesteps):
+	    omega = 0.5 / eye_circle_radius
+	    left_rate, right_rate =  vel2wheel(v, omega, wheel_dist, wheel_rad)     #  in turns per second
+	    cur_pos, cur_angle = drive(cur_pos, cur_angle, left_rate, right_rate, wheel_dist, wheel_rad, dt)
+	    poses.append((cur_pos, cur_angle))
+
+	//now let's put a smile on that face
+
+	start_pos = [start_pos[0] + smiley_circle_radius * 0.3 , start_pos[1] - smiley_circle_radius * 0.9]
+	cur_angle = 0       # angle in degrees
+	cur_pos = start_pos  
+	smile_circle_radius = smiley_circle_radius * 2
+
+	distance = 2 * math.pi * smile_circle_radius
+	timesteps = int(distance  / (v * dt * 10)) 
+	for t in range(timesteps):
+	    if t < timesteps/8:
+		omega = (math.radians(-45) - math.radians(cur_angle)) / ((t+1) * dt)
+	    elif t< timesteps/2:
+		omega = (math.radians(45) - math.radians(cur_angle) ) / ((t+1) * dt)
+	    else:
+		omega = (math.radians(180) - math.radians(cur_angle) ) / ((t+1) * dt)
+	    left_rate, right_rate =  vel2wheel(v, omega, wheel_dist, wheel_rad)     #  in turns per second
+	    cur_pos, cur_angle = drive(cur_pos, cur_angle, left_rate, right_rate, wheel_dist, wheel_rad, dt)
+	    poses.append((cur_pos, cur_angle))
+
+	//now dawing the twink part
+
+	start_pos = [first_eye[0] + smiley_circle_radius /2 + second_eye_radius, first_eye[1] + 1  ]
+	cur_angle = 45      # angle in degrees
+	cur_pos = start_pos  
+	second_eye_radius = eye_circle_radius
+
+	distance = 2 * math.pi * smile_circle_radius
+	timesteps = int(distance  / (v * dt * 32)) 
+	for t in range(timesteps):
+	    if t < timesteps/4:
+		omega = (math.radians(-45) - math.radians(cur_angle)) / ((t+1) * dt)
+	    else:
+		omega = (math.radians(45) - math.radians(cur_angle) ) / ((t+1) * dt)
+	    left_rate, right_rate =  vel2wheel(v, omega, wheel_dist, wheel_rad)     #  in turns per second
+	    cur_pos, cur_angle = drive(cur_pos, cur_angle, left_rate, right_rate, wheel_dist, wheel_rad, dt)
+	    poses.append((cur_pos, cur_angle))
+	    
+

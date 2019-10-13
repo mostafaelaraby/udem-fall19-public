@@ -3,6 +3,7 @@ import math
 import matplotlib.pyplot as plt
 
 
+
 class RRT_planner:
     """
     Rapid Random Tree (RRT) planner
@@ -42,6 +43,7 @@ class RRT_planner:
         self.max_iter = max_iter
         self.list_obstacles = list_obstacles
         self.list_nodes = []
+        self.radius = 3# radius to check for neighbor nodes
 
     def plan(self, show_anim=True):
         """
@@ -51,7 +53,6 @@ class RRT_planner:
 
         self.list_nodes = [self.start_node]
         for it in range(self.max_iter):
-            new_node = self.Node(0, 0)
             ####### 
             # Objective: create a valid new_node according to the RRT algorithm and append it to "self.list_nodes"
             # You can call any of the functions defined lower, or add your own.
@@ -60,7 +61,13 @@ class RRT_planner:
 
             #######
 
-            if show_anim and it % 5 == 0:
+            random_node = self.get_random_node()
+            near_node = self.list_nodes[self.get_closest_node_id(self.list_nodes, random_node)]
+            new_node = self.extend(near_node, random_node)
+            if not(self.collision(new_node, self.list_obstacles)):
+                self.list_nodes.append(new_node)
+
+            if show_anim and it % 5:
                 self.draw_graph(random_node)
 
             if self.distance_to_goal(new_node.x, new_node.y) <= self.max_branch_length:
@@ -142,6 +149,8 @@ class RRT_planner:
         dy = y - self.end_node.y
         return math.sqrt(dx ** 2 + dy ** 2)
 
+
+
     def get_random_node(self):
         # Returns a random node within random area, with the goal being sampled with a probability of goal_sample_rate %
         if random.randint(0, 100) > self.goal_sample_rate:
@@ -181,9 +190,9 @@ class RRT_planner:
         min_id = dist_list.index(min(dist_list))
 
         return min_id
-    
-    
-    
+ 
+import numpy as np 
+
 class RTT_Path_Follower:
     """
     Follows a path given by RRT_Planner
@@ -191,21 +200,41 @@ class RTT_Path_Follower:
     def __init__(self, path, local_env):
         self.path = path
         self.env = local_env
-    
+        self.path_nodes = [RRT_planner.Node(*p) for p in path]
+        self.which_path_ind = -1
+        self.rotate = True
+
     def next_action(self):
-        # Current position and angle
-        cur_pos_x = self.env.cur_pos[0]
-        cur_pos_y = self.env.cur_pos[2]
-        cur_angle = self.env.cur_angle
-        
-        v = 0.
-        omega = 0.
-        
+
         #######
         #
         # YOUR CODE HERE: change v and omega so that the Duckiebot keeps on following the path
         #
         #######
+        # Current position and angle
+        cur_pos_x = self.env.cur_pos[0]
+        cur_pos_y = self.env.cur_pos[2]
+        cur_angle = self.env.cur_angle
+        
+        dx = self.path[self.which_path_ind][0] - cur_pos_x
+        dy = self.path[self.which_path_ind][1] - cur_pos_y
+        target_angle = -1 * np.angle(dx + dy * 1j)
+
+        cur_node = RRT_planner.Node(cur_pos_x, cur_pos_y) 
+        dest_node = RRT_planner.Node(*self.path[self.which_path_ind]) 
+        dist, _ = RRT_planner.compute_dist_ang(cur_node, dest_node)
+
+        if self.rotate:
+            v=0
+            omega = (target_angle%(2*np.pi) - cur_angle%(2*np.pi) )
+            if  math.fabs(omega) < 2e-2:
+                self.rotate=False
+                #finished rotating and now moving to destination
+        else:
+            v = dist
+            omega= 0
+            if dist < 2e-2:
+                self.rotate=True
+                self.which_path_ind -=1
         
         return v, omega
-    

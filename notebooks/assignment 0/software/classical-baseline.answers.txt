@@ -1,4 +1,0 @@
-## Topics updated in the launch file
-
-- added a remap in ground projection node to be able to read segment_list from line_detector_node onto lineseglist_in
-- fixed variable mapping to get car_cmd from lane_controller_node inside lane_filter node 
