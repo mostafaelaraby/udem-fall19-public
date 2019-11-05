@@ -1,0 +1,87 @@
+## Question 0
+### What type of behavior does the above reward function penalize?
+    3 The reward function contais 3 components and each one penalizes a different behavior :
+    - dot_dirt * speed which is the alignment of the agent direction with the curve tangent multiplied by the linear velocity of the agent and this reward function will make the bot be aligned with the target and move with a good linear speed to reach his target , increasing th e weight of this might make the agent prefer to be on the same direction of the targetbut far away and might end off track .
+    -  the second term is the absolute distance from the target and this one is negative as we are trying to reduce the distance to the target throughout the motion of the agent and we give this one higher weight than going with the lane direction in order to avoid gettting far from the lane / target
+    - collision penalty term is a safe driving penalty to make the agent avoid collisions during his motion and this one is getting highest weight among the three
+###  Is this good or bad in context of autonomous driving?
+    Experimenting with these values and trying to reduce the weight of one of them would cause problems:
+    - decreasing the value of the direction would make the agent's motion near the lane but not smooth and would oscillate around the target 
+    - decreasing the weight of the dist might make the agent kean on keeping the direction but might be away from the lane we are trying to follow
+    - decreasing the weight of the collision penalty might make the agent focus more on keeping track even if there's an obstacle on his target lane
+    Also this reward is not using a component for collision with other dynamic moving objects like another moving vehicle or pedestrians which would make it a disaster for autonomous driving and optimizing it as a single objective might be bad in the context of autonomous driving as there's no single optimal solution for optimizing this combination but using them as separate objectives and let the model choose which component to use would be better
+### Name some other issues that can arise with single-objective optimization
+    Using a single objective function optimization is not good in the context of autonomous cars as it tends to maximize/minimize that single objective function and tries to find a single optimal solution but in reality there are multiple solutions each one depending on the current situation so it makes more sense to optimizae multiple objective and  let them compete with each other to get the solution that would do the job optimally
+
+### three  sets of constants
+using these sets will create a balance between keeping the direction and trying to get close to the lane and will give higher priority to the collition penalty
+    - 10 for keeping on the same direction of the target for component one speed * lp_dir
+    - -10 for lane_dist to keep the distance as short as possible
+    - 20 for collision penalty which should have a high score to avoid collisions
+
+## Question 1
+
+### Important bugs found in code
+    - self.lr in critic and actor models which doesnt exist and should be replace by self.relu
+    - detaching the output of the critic from target_q because if we dont detach the backward will backprop through the target label and the predicted and teh optimizer might change the value of the target to be closer to the predicted which might make the model perform poorly and won't converge as our target is being optimized too and not treated as a constant
+    - start_timesteps value should be smaller than max_steps as it is warmup steps having random exploration
+    - output of the critic model should be a scalar logit having 1 dim without tanh as using tanh might cause the loss being optimized to saturate on the 2 extreme sides 1 and -1 without giving useful signal to our actor model
+    - target networks proposed in the paper is not used , without target networks the critic model loss is depending on the output of the critic and actor output to get the action and critic value for the next state which is our target this technique would make the minimization of MSBE unstable , the solution is to use target networks which is a clone of actor and critic weights at the start and its weights is updated by polyak averaging every iteration (which would be a soft update)
+After fixing the above bugs the loss started to move on the right track for convergence and the reward started to increase each iteration.
+### subquestion a
+#### What is an issue that you see related to non-stationarity?
+In the actor-critic setup this means that the distribution of actions generated is shifting and chaging throught time which make the adaptation of the model to this changes very hard and would cause the model to diverge. So when we are calulating the critic loss we are depending on the critic output for the target depending on the next state and the predicted for the current state so this would be harder to optimize and would make the  model takes time to adapt to its changes and start converging
+#### Define what non-stationarity means in the context of machine learning and how it relates to actor-critic methods
+Non-stationary in machine learning means that the input data distribution is changing and having a covariate shift while having the same conditional distribution of outputs which make it harder for the model to learn, this relates to the actor-critic as our data generated from the environment and the action coming from the actor fed to the critic to compute target_q and compare it with predicted is changing throughout the time and depending on the environment which would make it harder for the model setup to start converging
+
+#### some hypotheses on why reinforcement learning is much more difficult (from an optimization perspective) than supervised learning, 
+From the non-stationary issue , the data distribution used in training is changing throughout time which would also shift our optimal action that the bot should take now ,this issue would make it harder to optimize as our loss is changing depending on the outcome of the environment on the other side in the supervised learning our loss function is fixed throughout the training which makes it easier to reach the optimal point without having the issue of changed loss throughout the training which is coming from the env.
+
+### subquestion b
+#### What role does the replay buffer play in off-policy reinforcement learning?
+The Replay buffer is used to store a set of previous eperiences which would stabilize the behavior of our algorithm by sampling batches from the previous experiences  to avoid overfitting our very most recent data
+
+#### It's most important parameter is max_size - how does changing this value (answer for both increasing and decreasing trends) qualitatively affect the training of the algorithm?
+Using a small max_size means using only my very most recent data and the algorithm would overfit to that and it would break the algorithm,
+Using a large max_size may slow down the learning as we might start sampling from a too early iteration which would make the model use a too old random state of the data 
+It is important to tune that parameter not to have a very large max_size which comes on the expence of the time to converge and definitely not a small one to avoid instability and overfitting.
+
+### subquestion c
+#### How automatic differentiation work ?
+Automatic differentiation evaluates the derivative of a function by applying the chain rule repeatedly to the sequence of operations (which is the layer in case of deep neural model)  in a backward way which makes , so we need to construct a computational graph from our neural node and each node represent a node and using this computational graph partial derivative is computed with respect to the last to the leaf node adn then we move backward up in the computational graph and computing the derivative of each one with respect to the loss using it derivative with respect to the previous node (by using chain rule mentioned)
+
+#### Single element tensor and scalar 
+a single element tensor having require_grad value means it will be added to the computational graph and a derivative with respect to the loss will be computed and stored in grad_ and its value will be used by the optimizer to optimize the model  , for the scalar values the AD won't compute a grad_ value for it and won't be used to optimize the parameter of the model.
+The issue in the above code is in the critic loss our target is getting its prediction from critic model and we are not detaching (which means removing it from the computational graph) so the optimizer will use its value along with the predicted to optimize the parameters which might change the value of the target we are optimizing agains instead of changing the predicted value which is wrong our target should be a constant scalar and we just need to optimize our parameters based on the predicted value which we are interested in optimizing its value.
+
+
+## Question 2
+###  Target Networks
+When we are minimizing the critic loss to update its parameter we have a problem that the target depends on the same parameters we are trying to train which makes the optimization of this loss unstable the solution is to use a set of parameters which comes close to our parameters throughout the train but with a time delay , so we create a target network for the actor and the critic and at the start they are having the same parameters as our model but every iteration the parameters are updateed using polyak averaging \phi_targ = (1 - \lambda) \phi_targ + (1-\lambda)  \phi
+\lambda is the polyak parameter which is usually in the range [0,1] but near 0 which would give more weight to the current target network parameter giving that time delay effect
+
+### Annealed Learning Rates
+it is a trick usually used in training neural networks model by decaying the learning rate throughout the training so at the end of the training the model would take small learning rate step which would help him avoid plateaus , but decaying aggressively would make the model cool down early and wont reach its best position, there are several types of annealing one of them is step decay which reduces the lr with a factor everry few epochs another one  is exponential decay  
+
+### Replay Buffer
+The Replay buffer is used to keep a set of previous experiences and then sample from these experiences for the current training iteration which help stabilize the model and helps avoid overfitting to the very most recednt data. Chossing the max_size of experiences to keep is an important hyperparameter choosing a small one would cause overfitting and a very large one would slow down the learning.
+
+### Random Exploration period
+Exploring on-policy in the early iterations would make the agent explore a small variety of actions giving useful learning signals, so to fix this the agent would explore randomly the space of actions to let him try a wide range of actions during the training in during a set of steps (warmup steps)
+So the model would start warming up by taking random actions and exploring the sapce of actions after that the model would explore using the actions predicted by the policy but we will have here the same problem of exploring a small range of action so a random  noise is added to the predicted action to let the model explore a wide variety of actions and the rate of this added noise should be reduced throughout the training to let the model learn, and at test time we dont add the noise we just see what the agent is able to predict.
+
+### Preprocessing of the Image
+The preprocessing of the image is aimed at reducing the dimensionality of the images and to deal with some artefacts related to the Atari 2600 emulator
+    - Encode a single frame and we tak the maximum value for each pixel colour value over the frame being encoded and the previous frame (this technique is used to remove the flickering that is present in games that some objects would appear in even or odd frames only this is due to the limited number of sprites that the Atari can display at once)
+    - The Extracting the Y channe; (luminance) from ths RGB scale and rescale it to 84 x 84 .
+    - The we take last m frames and apply the above preprocessing then we stack them togethor and this stack with m=4 is sent to the Q-function
+
+## Question 3 on TD3 paper
+
+Problems they are addressing in standard actor-critic formulation:
+    - overestimation bias which is a propoerty of Q-learning in which the maximization of a noise value estimate induces a consistent overestimation.
+    - in a function approximation setting this noise is unavoidable given the imprecision of the estimater .
+    - so having an imprecise estimate within each update will accumulate error resulting in suboptimal policy updates and divergent behavior
+In an actor-critic the critic loss is trying to optimize through target value calculated from the params we are trying to optimize causing this kind of problems so using target networks is trying to tackle this overestimation of bias but it is not very effective in tackling this problem, because the slow chsnging policy in actor-critic and the current and target networks were too similar to make independent estimation.
+
+In this paper they proposed to clip double q-learning in the actor critic area, this is achieved simply by upper bounding the less biased value estimate between the estimate comming from the current critic network and the target critic network by simply taking the smaller value to optimize the critic model, this technique might result in underestimation of the bias but this is better than having an overestimation bias resulting in suboptimal policy  and the value of underestimated actions will not be explicitly propagated through the policy update. 

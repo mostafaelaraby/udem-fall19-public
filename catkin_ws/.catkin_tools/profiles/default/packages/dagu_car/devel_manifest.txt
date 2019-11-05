@@ -1,4 +1,4 @@
-dt-core/packages/dagu_car
+dt-car-interface/packages/dagu_car
 /duckietown/catkin_ws/devel/.private/dagu_car/cmake.lock /duckietown/catkin_ws/devel/./cmake.lock
 /duckietown/catkin_ws/devel/.private/dagu_car/lib/python2.7/dist-packages/dagu_car/__init__.py /duckietown/catkin_ws/devel/lib/python2.7/dist-packages/dagu_car/__init__.py
 /duckietown/catkin_ws/devel/.private/dagu_car/lib/pkgconfig/dagu_car.pc /duckietown/catkin_ws/devel/lib/pkgconfig/dagu_car.pc

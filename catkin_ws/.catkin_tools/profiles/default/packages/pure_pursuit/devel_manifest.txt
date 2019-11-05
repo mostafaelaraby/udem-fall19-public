@@ -1,0 +1,5 @@
+moustafa_elarabi_hw2_duckietown/packages/pure_pursuit
+/duckietown/catkin_ws/devel/.private/pure_pursuit/cmake.lock /duckietown/catkin_ws/devel/./cmake.lock
+/duckietown/catkin_ws/devel/.private/pure_pursuit/lib/pkgconfig/pure_pursuit.pc /duckietown/catkin_ws/devel/lib/pkgconfig/pure_pursuit.pc
+/duckietown/catkin_ws/devel/.private/pure_pursuit/share/pure_pursuit/cmake/pure_pursuitConfig-version.cmake /duckietown/catkin_ws/devel/share/pure_pursuit/cmake/pure_pursuitConfig-version.cmake
+/duckietown/catkin_ws/devel/.private/pure_pursuit/share/pure_pursuit/cmake/pure_pursuitConfig.cmake /duckietown/catkin_ws/devel/share/pure_pursuit/cmake/pure_pursuitConfig.cmake
