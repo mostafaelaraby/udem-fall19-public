@@ -14,3 +14,7 @@
 	path = catkin_ws/src/dt-car-interface
 	url = https://github.com/duckietown/dt-car-interface.git
 	branch = daffy
+[submodule "moustafa_elarabi_hw2_duckietown"]
+	path = catkin_ws/src/moustafa_elarabi_hw2_duckietown
+	url = https://github.com/mostafaelaraby/moustafa_elarabi_hw2_duckietown
+	branch = master

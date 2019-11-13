@@ -13,11 +13,6 @@
     <arg name="/lane_following/ground_projection" default="true"/>
     <arg name="/lane_following/lane_controller" default="true"/>
 
-    <arg name="inverse_kinematics" default="true"/>
-
-    <group>
-        <node name="gymdt" pkg="gymdt" type="gymdt_node.py" />
-    </group>
 
     <group if="$(arg lane_following)">
 
@@ -54,6 +49,7 @@
             </include>
         </group>
 
+<<<<<<< HEAD
         <!-- Lane controller -->
         <group if="$(arg /lane_following/lane_controller)">
             <remap from="lane_controller_node/lane_pose" to="lane_filter_node/lane_pose"/>
@@ -76,5 +72,13 @@
         </group>
 
     </group> 
+=======
+                <include file="$(find lane_control)/launch/lane_controller_node.launch">
+                    <arg name="veh" value="$(arg veh)"/>
+                    <arg name="param_file_name" value="$(arg param_file_name)"/>
+                </include>
+            </group>
+    </group> -->
+>>>>>>> d4c341860acf6e91873f33a6f7c683820325de8a
     <!-- End Lane Control -->
 </launch>

@@ -1,0 +1,1 @@
+/duckietown/catkin_ws/devel/.private/sw_06_line_detector/share/sw_06_line_detector/cmake/sw_06_line_detectorConfig-version.cmake

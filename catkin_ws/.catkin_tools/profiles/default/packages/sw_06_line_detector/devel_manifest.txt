@@ -1,0 +1,6 @@
+sw06-CV/packages/sw_06_line_detector
+/duckietown/catkin_ws/devel/.private/sw_06_line_detector/cmake.lock /duckietown/catkin_ws/devel/./cmake.lock
+/duckietown/catkin_ws/devel/.private/sw_06_line_detector/lib/python2.7/dist-packages/sw_06_line_detector/__init__.py /duckietown/catkin_ws/devel/lib/python2.7/dist-packages/sw_06_line_detector/__init__.py
+/duckietown/catkin_ws/devel/.private/sw_06_line_detector/lib/pkgconfig/sw_06_line_detector.pc /duckietown/catkin_ws/devel/lib/pkgconfig/sw_06_line_detector.pc
+/duckietown/catkin_ws/devel/.private/sw_06_line_detector/share/sw_06_line_detector/cmake/sw_06_line_detectorConfig.cmake /duckietown/catkin_ws/devel/share/sw_06_line_detector/cmake/sw_06_line_detectorConfig.cmake
+/duckietown/catkin_ws/devel/.private/sw_06_line_detector/share/sw_06_line_detector/cmake/sw_06_line_detectorConfig-version.cmake /duckietown/catkin_ws/devel/share/sw_06_line_detector/cmake/sw_06_line_detectorConfig-version.cmake

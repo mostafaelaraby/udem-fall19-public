@@ -1,0 +1,119 @@
+## Question 1: What is the role of this node? Describe shortly its input and its outputs. 
+The role of this node is simply to take as inpt a compressed image coming from the bot's camera and outputs line segments detected from input image, these segments includes white lines , yellow lines and red lines.
+Node's inputs:
+    - ~corrected_image/compressed : compressed image coming from anti_instagam node which is a preprocessor for the image coming from the camera
+    - ~switch: which is a boolean switch to enable or disable lane detection in the current node
+    - ~fsm_state: which is the current state used in detection which can be intersection detection or normal lane detection
+
+Node's output:
+    - segment_list: which is the detected segments yellow / red / white
+    - image_with_lines: which is the input image with detected segments on it (used to visualize in ros the detection)
+
+## Question 2 what the ground projection node does.
+Ground projection node is simply used to project pixel coordinates on input image to real world coordinates relative to the camera x,y,z which is used later to calculate the required speed and angular velocity to reach the goal
+
+## Quesion 3
+
+1. Resize and Crop
+    In this step the input image is preprocessed and checked to have the same size as the expected size defined as parameter ~img_size , this resizing is  using nearest neighbor interpolation in case of upsampling the image, and then the image is cropped from the top based on the value of a parameter ~top_cutoff
+
+2. Setting image in line detector class
+    1. Saving a BGR copy of the image
+        In this step input image coming from the camera is converted and saved in BGR format, we need to convert it to this format because it is used and adopted by opencv functions which are later used in the detection of the lines.
+    2. Saving an HSV copy of the image
+        In this step the BGR image is converted to hue ( Dominant Wavelength ) saturation (Purity / shades of the color ) lightness space , this space will make it easier to separate  the needed colors for detection from input images.
+        Using the HSV version we can create a mask for a specific color easily and filter the image on that specific color.
+    3. Detecting the edges of the BGR image
+        In this step an algorithm is applied on the BGR image to detect edges , in this case we are using canny edge detection , this edge detection will be useful later to send the binary edges to the algorithm Hough transform that will give us the required segments.
+        Canny Algorithms steps:
+            -   Noise Reduction: 
+                which is an important step used to reduce image noise as edge detection is sensitive to image noise and might detect some other part of the image as edges in case of noisy input, in this step we use a gaussian filter 5x5 to smooth input image 
+            
+            - Intensity Gradient of the image
+                the smoothened image is then passed through a sobel kernel in horizontal and vertical directions , this kernel is maximized in case of finidng any edge in the horizontal/ vertical direction.
+                Gradient direction is always perpendicular to edges. It is rounded to one of four angles representing vertical, horizontal and two diagonal directions.
+                The Sobel operator performs a 2-D spatial gradient measurement on an image and so emphasizes regions of high spatial frequency that correspond to edges. Typically it is used to find the approximate absolute gradient magnitude at each point in an input grayscale image.
+            
+            - Non-maximum supression
+                After getting gradient magnitude and direction, a full scan of image is done to remove any unwanted pixels which may not constitute the edge. 
+                Each pixel is checked if it is a local maximum in its neighborhood in the direction of gradient. As we can get frm previous steps a local maximum at a pixel without being an edge or having neighboring maximized pixels.
+
+            - Hysteresis Thresholding
+                In this step a decision is made to choose wether the detected eddge is a real edge or not based on a specific threshold.
+                In this case we will use minVal and maxVal thresholds, edges having values more than maxVal threshold are sure edges and ones below minVal are non edges. The points that are between the 2 thresholds are chosen to be edges or not based on their connectivity to other sure edge pixels  if they are connected they are edges other than that they will be discarded.
+
+3. For each color in `white, yellow, red]`, detect lines
+    1. Get color filtered image
+        In this step we are using the image in HSV space and then a mask is created based on the needed color value in hsv space and then a binary mask is created if the pixel is in the needed color upper and lower range , the output mask will be 255 if it is within the color range and 0 otherwise.
+    2. Dilate color filtered image
+        This procedure follows convolution with some kernel of a specific shape such as a square or an ellipse. This kernel has an anchor point, which denotes its center.
+        This kernel is overlapped over the picture to compute maximum pixel value. After calculating, the picture is replaced with anchor at the center. With this procedure, the areas of bright regions grow in size (dilation effect).
+        For example, the size of an object in white shade or bright shade increases, while the size of an object in black shade or dark shade decreases.
+        we use the dilation to increase the width of brightness region for example it would increase the width of the lane which would make it easier for the edge detection and segments publishing.
+    3. Get color filtered edges
+        In this step we are using a bitwise and between our cmputed mask from the previous steps and our detected edges from canny algorithm so this will output the edges related to that specific color of interest that we are trying to get its segments.
+    4. Detect lines in color filtered edges
+        Using our filtered color edges as input having the of color of interest and then using probabilistic hough transform to detect lines / segments in these input edges.
+        Hough line transform works as follow:
+            The linear Hough transform algorithm uses a two-dimensional array, called an accumulator, to detect the existence of a line described by r=x\cos \theta +y\sin \theta . 
+        The dimension of the accumulator equals the number of unknown parameters, i.e., two, considering quantized values of r and θ in the pair (r,θ). 
+        For each pixel at (x,y) and its neighborhood, the Hough transform algorithm determines if there is enough evidence of a straight line at that pixel. 
+        If so, it will calculate the parameters (r,θ) of that line, and then look for the accumulator's bin that the parameters fall into, and increment the value of that bin. 
+        By finding the bins with the highest values, typically by looking for local maxima in the accumulator space, the most likely lines can be extracted.
+
+    5. Compute normals and centers of these lines
+        We are taking the average to get the centers of these lines, these centers of the line can be later used to move the bot to the required direction based on the distance from the bot to the center of the line. Normals are created by shifting the center's coordinates to create two points on the normal line. and they are used to know the orientation and to move the bot to the right origntation and location to become near the lane
+
+4. Normalize the pixel coordinates and create segment list.
+    In this step we are moving the segments output to normalized coordinates which are calculated  by dividing the pixel coordinates by the window's coordinate range and then the segment list is created based ont he normalized segments and the normal outputs(which is the norm on this segment), because we need to have normalized coordinates that doesn't depend on the input image width and height.
+
+
+## Question 4
+
+It doesn't run well on the simulator because the algorithm speed is 1.6 frame per second whihch is too slow and skips lots of frames and in that case the controller doesnt take the right decision on time.
+So in the dilate implementation using nested loop over the image seems to be computationally expensive and takes long time which makes the predictions of lanes slower.
+
+## Question 5
+
+No definitely not as fast as opencv code because opencv's code is c and this python library is just a wrapper and c is definitely faster than using python loops and numpy
+                            My Implementation               OpenCV
+inRange                     ~0.0019 sec                     ~2.6e-5 sec
+bitwise_or                  ~8e-6sec                        ~9e-6 sec
+bitwise_and                 ~7e-6sec                        ~7e-6 sec 
+getStructuringElement       ~8e-5sec                        ~8e-6 sec
+dilate                      ~0.19sec                        ~4e-5 sec
+
+so the bottleneck is dilate function if we used scipy binary dilate the detection freuqency will become 15 fps and the model will start working properly
+
+
+## Question 6
+
+It is super bad on the bot itself because the lane detection node is taking super long time and the bot is unable of taking the right decision on time
+
+
+~ bonus
+
+Hough Transform Pseudo code cause i didn't test it 
+it is based on my understanding from wikipedia article
+so the output bins can be easily used to specify the lines in the input image
+def build_houghspace(img):
+    # here we initialize the hough space
+    hough_space = np.zeros(img.shape)
+    for i, row in enumerate(img):
+        for j, pixel in enumerate(row):   
+            if pixel != 1 : continue
+        hough_space = add_to_polar_space((i,j), hough_space)
+    return hough_space
+
+def add_to_polar_space(p, feature_space):
+    # in this function we are just hecking the polar coordinate and we add the 
+    # corresponding right bin
+    space = np.linspace(0, pi, len(feature_space))
+    d_max = len(feature_space[0]) / 2
+    for i in range(len(space)):
+        theta = space[i]
+        d = int(p[0] * sin(theta) + p[1] * cos(theta)) + d_max
+        if (d >= d_max * 2) : continue
+        feature_space[i, d] += 1
+    return feature_space
+
