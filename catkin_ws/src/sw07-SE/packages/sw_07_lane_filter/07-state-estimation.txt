@@ -1,0 +1,84 @@
+## Question 1
+Lane Filter node publishers:
+    - in_lane : it publishes a flag stating if the bot is on track following the lane or not
+    - lane_pose: it publishes my current robot position phi and d which is coming from the used filter.
+    - belief_img: is a probability distribution over states that's visualized on a mesh grid for visualization purposes and to check our filter's belief toward his input segments.
+    - seglist_filtered: it publishes the inlier segment lists that are within the distance range from my current bot
+
+Lane Filter node subscribers:
+    - segment_list: it subscribe to read segment list coming from camera nodes that would segment and get yellow , white and red segments.
+    - car_cmd: it gets the current command run on the car in terms of speed and angular velocity.
+
+
+## Question 2
+the belief in histogram filter is  a discretization of the state space with one probability value per discrete state s. 
+the current belief  summarizes all information of the entire history of observations which is a key assumption of histogram filter (Markov property of states).
+It is initialized a multivariate gaussian distribution   .
+
+## Question 3
+After computing the current segment state d, phi using generatevote function, we initialize a likelihood array of zeros (as bins) and we increment 1 each state of this array based on the computed normalized vvote value of d and phi coming from generate_vote function.
+
+
+## Question 4
+
+### Particle.predict
+In this function i implemented the motion model used to predict the next d and phi of the current particle based on the bot's speed and angular velocity. Also to model the sensor's uncertainty i have added a gaussian random variable based on standard deviation of error in d and phi.
+
+### Particle.update
+this function is taking as input phis and ds for all the segments, so first i normalize the ds and phis using min_max scaler and add some noise like the one added to the current particle d and phi. After that i compute the inverse of the euclidean distance between the particle (d,phi) and each segment (ds[i], phis[i]) And after that my weight is just the sum of these distances
+
+### lane_filter.initialize
+I initialized d and phi values of the particles based on gaussian distribution using same mean and sigma given for initialization.Also trying uniform distribution seems to be good and gave us good results.
+
+### lane_filter.resample
+In this function i used numpy random choice which simply samples from the given set using likelihood normalized weights computed from the particle update function .
+
+### lane_filter.getEstimate
+This one i tried using weighted average based on the likelihood but it was noisy, so normal mean / median worked fine to predict phi and d from the set of filtered particles.
+
+### lane_filter.isInLane
+in this function i just computed the belief array based on my current particles values of d, phi as the one computed in the histogram filter and then i check for the maximum if it is greater than my min_max which means that i have a state to converge to and means that i am in lane.
+
+## Question 5
+It worked but i needed to edit the roughening parameters to become 
+        self.rough_d =  0.001
+        self.rough_phi = 0.05
+which made it work better it needed some perturbation to accomodate for uncertainty and to explore neighboring particles.
+Also i reduced the number of particles to make it predict faster.
+
+## Question 6
+The particle filter is unable to deal with wrong line detections like the duckie it would move forward to it as the particle filter is not keeping a history of previous observation so new noisy segments would make the particle filter go to a bad state and won't be able too recover unless we keep a history of previous weights and make it fade out linearly through upcoming steps.
+
+## Question 7
+No the particle filter will find hard time to recover from a wrong estimation or from an unexpected initial state (we need to initialize as gaussian) as it will keep using the same particles having high weight throughout the next steps even if these were coming from a bad state , the only way to avoid this  kind of problems as proposed by Rey would be drop some of the sampled particles say 10% and re initialize them and the other particles will be simply sampled using the weights calculated. Another way of making it robust is to increase the number of particles and in the getEstimate part we can use medoid to compute the estimate and get rid of the outliers.
+
+## Question 8 
+The number of particles if we increase it it will let us explore better the space and will give us more smooth results. its limiting factor would be the computation time as if we increase the number of particles the bot will take time to compute its likelihood and will end up taking decisions slower than expected so he might end up hitting an obstacle or going off-track.
+
+## Question 9
+
+ The histogram filter is a grid-based method that splits the range of continuous states into a finite number of possible states, while the particle filter is designed to compute the posterior density by approximating the bayes filter.The particle filter solves the state update by using monte  carlo integration.In particle filter there's a technique called resampling which is periodically performed to better sample the posterior probability density. In resampling, particles with low probability are eliminated and particles with high probability are duplicated.
+
+ The histogram filter pros:
+ - Faster than particle filter
+ - its computation of the likelihood within each grid is simple
+ Cons of histogram file
+ - they are using space to save the histogram bins in 2d array
+ - if our space is large it will take large memory or maybe we can just reduce the number of bins whch wuld make our predictions in-accurate
+
+ The particle filter pros:
+ -  uses a direct monte carlo approach which help it explore the continuous space more than histogram filter
+ - if we use good initialization then the particle filter will be able to converge in small number of steps using small number of sampled particles
+ - it has a good precision than the histogram filter
+
+ Cons:
+ - slow computation
+ - needs tuning of parameters to work like roughening
+ - the particle filter is sensitive to noise in measurements which occurs a lot in the case of robbotics.
+ We cannot use kalman filter because of the nonlinearity introduced by sin(phi) when predicting the values Kalman filter only works when prediction system is linear.
+
+
+ ## Bonus
+ Running on the robot it worked on the robot but i had to reduce the nb_samples in particle filters as it takes extensive computation and will make the bot take time to compute the weights and it would cause slow response.
+ Also i had to multiply dt by a factor 0.5 to make it smaller and to make it work on the bot as it seems the time computing is larger than the real time difference used for rpedictions.
+ Attached the video for this run.

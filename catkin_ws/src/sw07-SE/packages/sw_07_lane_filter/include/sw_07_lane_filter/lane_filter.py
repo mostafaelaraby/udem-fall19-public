@@ -21,6 +21,9 @@ from math import floor, sqrt
 import copy
 
 import rospy
+import scipy
+import math
+import copy
 
 
 class LaneFitlerParticle(Configurable, LaneFilterInterface):
@@ -29,6 +32,7 @@ class LaneFitlerParticle(Configurable, LaneFilterInterface):
         def __init__(self, d, phi, config):
             self.d = d
             self.phi = phi
+
             self.weight = 1
 
             self.d_max = config['d_max']
@@ -42,28 +46,67 @@ class LaneFitlerParticle(Configurable, LaneFilterInterface):
             # Update d and phi depending on dt, v and w
             new_d = self.d 
             new_phi = self.phi 
+
             ########
             # Your code here
-            ########
+            ######## 
+            new_d +=    0.3 * dt * v * np.sin(new_phi) + np.random.normal(scale=self.sigma_d)
+            new_phi +=  0.3 * dt * w   + np.random.normal(scale=self.sigma_phi)
+            #TODO add noise to model the uncertainty nouse to new d and new phi
             self.d = new_d
             self.phi = new_phi
+            self.clip_measurements()
+        
+        def gaussian(self, mu, sigma, x):
+            return np.exp(- ((mu - x) ** 2) / (sigma ** 2) / 2.0) / np.sqrt(2.0 * np.pi * (sigma ** 2))
+
 
         def update(self, ds, phis):
             # Change weight depending on the likelihood of ds and phis from the measurements
 
-            new_weight = 1
             ########
             # Your code here
             ########
-            self.weight = new_weight
+            new_weight = 1.
+
+            # normalizing measurements 
+            # adding some random noise to ds and phis
+            ds = [ np.random.normal(scale=self.sigma_d) + (d - self.d_min)/(self.d_max - self.d_min ) for d in ds]
+            phis = [  np.random.normal(scale=self.sigma_phi) +  (phi - self.phi_min)/(self.phi_max - self.phi_min) for phi in phis]
+
+            d = (self.d - self.d_min )/(self.d_max - self.d_min)
+            phi = (self.phi - self.phi_min)/(self.phi_max - self.phi_min)  
+ 
+            distances = []
+            for i in range(len(ds)):
+                # inverse of euclidean distance for the weight
+                distance =  np.sqrt((d - ds[i])**2 + (phi - phis[i])**2) 
+                distance = 1./distance
+                distances.append(distance)
+            if len(distances)>0:
+                distances = np.array(distances)
+                new_weight =   np.sum(distances)
+            else:
+                new_weight = 1.
+            
+            self.weight = new_weight 
 
         def perturb(self, dd, dphi):
             self.d += dd
             self.phi += dphi
+            self.clip_measurements()
+
+        def clip_measurements(self):
+            # TODO use % d_max
+            #print(self.phi)
+            self.d = np.clip( self.d,self.d_min  , self.d_max - 1e-10  )
+            self.phi = np.clip( self.phi,self.phi_min, self.phi_max - 1e-10  )
+            
+
 
     def __init__(self):
         # Parameters
-        self.nb_particles = 500
+        self.nb_particles = 15
 
         ## Initialization 
         self.mean_d_0 = 0       # Expected value of d at initialization
@@ -77,7 +120,7 @@ class LaneFitlerParticle(Configurable, LaneFilterInterface):
 
         ## Roughening
         self.rough_d =  0.001
-        self.rough_phi = 0.002
+        self.rough_phi = 0.05
 
         ## Environment parameters
         self.linewidth_white = 0.05
@@ -113,14 +156,15 @@ class LaneFitlerParticle(Configurable, LaneFilterInterface):
         config['sigma_d'] = self.sigma_d      
         config['sigma_phi'] = self.sigma_phi      
 
+        # starting by doing a gaussian initialization 
+        d_gaussian = np.random.normal(self.mean_d_0, self.sigma_d_0, self.nb_particles)
+        phi_gaussian = np.random.normal(self.mean_phi_0, self.sigma_phi_0, self.nb_particles)
         for i in range(self.nb_particles):
-            d = 0
-            phi = 0
-        ########
-        # Your code here
-        ########
+            d = d_gaussian[i]
+            phi = phi_gaussian[i]
             initial_particles.append(self.Particle(d, phi, config))
         self.particles = initial_particles
+        self.tmp_weights = []
 
     def predict(self, dt, v, w):
         # Prediction step for the particle filter
@@ -129,30 +173,53 @@ class LaneFitlerParticle(Configurable, LaneFilterInterface):
 
     def update(self, segment_list):
         # Measurement update state for the particle filter
-        segmentArray = self.prepareSegments(segment_list)
+        segment_list = self.prepareSegments(segment_list)
         self.updateWeights(segment_list)
         self.resample()
         self.roughen()
 
     def updateWeights(self, segment_list):
         ds = []
-        phis = []
+        phis = [] 
         # Compute the ds and phis from the segments
         for segment in segment_list:
             d, phi, _ = self.process(segment)
             ds.append(d)
-            phis.append(phi)
+            phis.append(phi) 
         # Update the particle weights
         for particle in self.particles:
             particle.update(ds, phis) 
+
+    def get_normalized_particles_weights(self):
+        weights = []
+        for particle in self.particles:
+            weights.append(particle.weight)
         
+        weights = np.array(weights)
+        weights  /= (np.sum(weights))
+        return weights
+
     def resample(self):
         # Sample a new set of particles
         new_particles = self.particles
+
         ########
         # Your code here
         ########
+
+        weights = self.get_normalized_particles_weights() 
+        new_particles_indices = np.random.choice(len(new_particles), self.nb_particles, p=weights)
+        new_particles = []
+        for i in range(len(new_particles_indices)):
+            new_particles.append(copy.deepcopy(self.particles[new_particles_indices[i]]))
+
+        # resetting weights
+        self.tmp_weights = []
+        for particle in new_particles:
+            self.tmp_weights.append(particle.weight)
+            particle.weight = 1.
         self.particles = new_particles
+        
 
     def roughen(self):
         # Roughen the particles set to avoid sample impoverishment
@@ -168,7 +235,8 @@ class LaneFitlerParticle(Configurable, LaneFilterInterface):
         ########
         # Your code here
         ########
-
+        d = np.mean(np.array([particle.d for particle in self.particles]))
+        phi = np.mean(np.array([particle.phi for particle in self.particles])) 
         return [d, phi]
 
     def isInLane(self):
@@ -177,6 +245,8 @@ class LaneFitlerParticle(Configurable, LaneFilterInterface):
         ########
         # Your code here
         ########
+        beliefArray = self.getBeliefArray()
+        in_lane =  beliefArray.max() >= self.min_max
         return in_lane
 
 ### Other functions - no modification needed ###
@@ -262,11 +332,14 @@ class LaneFitlerParticle(Configurable, LaneFilterInterface):
             phi_i = particle.phi
             # if the vote lands outside of the histogram discard it
             if d_i > self.d_max or d_i < self.d_min or phi_i < self.phi_min or phi_i > self.phi_max:
-                continue
-
-            i = int(floor((d_i - self.d_min) / self.delta_d))
-            j = int(floor((phi_i - self.phi_min) / self.delta_phi))
-            beliefArray[i, j] = beliefArray[i, j] + 1  
+                continue 
+            try:
+                i = int(floor((d_i - self.d_min) / self.delta_d))
+                j = int(floor((phi_i - self.phi_min) / self.delta_phi))
+                beliefArray[i, j] = beliefArray[i, j] + 1   
+            except:
+                print('lehhhhhhhhhhh ',d_i)
+                print('lehhhhhhhhhhh ',phi_i)
 
         if np.linalg.norm(beliefArray) == 0:
             return beliefArray
